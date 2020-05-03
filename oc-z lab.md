@@ -32,6 +32,17 @@ OpenShift Jenkins Pipeline
 OpenShift Login
 
 While using Jenkins plugins will make this much easier, we will do "devops the hard way"  as a learning excercise.
+
+```flow  
+st=>start: Start  
+e=>end  
+op=>operation: My Operation  
+cond=>condition: Yes or No?  
+  
+st->op->cond  
+cond(yes)->e  
+cond(no)->op  
+```
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTY1NTQxMDk2Ml19
+eyJoaXN0b3J5IjpbOTM3MzExMjQzLDE2NTU0MTA5NjJdfQ==
 -->
