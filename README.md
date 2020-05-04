@@ -14,6 +14,7 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
     - [Jenkins](#jenkins)
       - [Nodes](#nodes)
   - [Topology Diagram](#topology-diagram)
+    - [LinuxONE Community Cloud](#linuxone-community-cloud)
   - [Application](#application)
   - [Putting it all together](#putting-it-all-together)
   - [IBM Multicloud Manager](#ibm-multicloud-manager)
@@ -59,7 +60,7 @@ Platforms include:
 
 To enable multi-architecture, docker added support for manifests which let you link which platform to image (but exposing the end result as the same image). e.g "docker run hello-world" will first look at the version (`latest` is implied if no version tag is specified) then will check the local operating system and architecture (e.g linux, s390x) and query that combination in the registry. Once it fins that combination, it'll pull _only that specific container_ locally. Multi-arch images are similar to "fat binaries" at the container registry level but single, os and architecture specific images at the docker daemon level.
 
-By default the Docker daemon will look at its current operating system and architecture but it is possible to force download of a specific platform/architecture using the `--platform` command which is available in docker API [1.32+](https://docs.docker.com/engine/api/v1.32/) amd meed `experimental features` turned on in Docker daemon. The full specification of multi-architecture manifests can be found [here](https://docs.docker.com/registry/spec/manifest-v2-2/). More information on `docker pull` be found in the official docs [here](https://docs.docker.com/engine/reference/commandline/pull/).
+By default the Docker daemon will look at its current operating system and architecture but it is possible to force download of a specific platform/architecture using the `--platform` command which is available in docker API [1.32+](https://docs.docker.com/engine/api/v1.32/) and need `experimental features` turned on in Docker daemon. The full specification of multi-architecture manifests can be found [here](https://docs.docker.com/registry/spec/manifest-v2-2/). More information on `docker pull` be found in the official docs [here](https://docs.docker.com/engine/reference/commandline/pull/).
 
 <div style="page-break-after: always;"></div>
 
@@ -199,9 +200,9 @@ _Useful plugins to install:_
 - OpenShift Jenkins Pipeline
 - OpenShift Login
 
-> **Note:** While using Jenkins plugins will make this _much_ easier, we will do _**devops the hard way**_ as a learning exercise in this lab. We will just be using Jenkins as a glorified remote bash scripts runner, so every step is clear.
+> **Note:** While using Jenkins plugins will make this _much_ easier, we will do _**deployments the hard way**_ as a learning exercise in this lab. We will just be using Jenkins as a glorified remote bash scripts runner, so every step is clear.
 
-Other tools such as Tekton, JenkinsX, Razee etc make this much easier as they were built for kubernetes CI/CD. Cloud providers offer their own build tooling and now even GitHub offers native CI/CD with GitHub Actions.
+Other tools such as Tekton, JenkinsX, Razee etc make this much easier as they were built for kubernetes CI/CD. Cloud providers offer their own build tooling and now even GitHub offers native CI/CD with GitHub Actions. You will most likely use these other tools in production environments.
 
 #### Nodes
 
@@ -221,7 +222,7 @@ node ('s390x') {
 }
 ```
 
-Mixed node builds are also possible.
+Mixed node pipelines are also possible:
 
 ```groovy
 node ('s390x') {
@@ -244,6 +245,12 @@ The lab follows this topology:
 ![topology](./images/topology-lab.png)
 
 > **Note:** Using the kubernetes Jenkins plugin or OCP native Jenkins or other cloud native devOps pipline tooling would enable even fewer moving parts
+
+You can run the Jenkins master itself on one of the clusters and the agent in another OCP cluster, reducing the need for 2 separate VMs. It will be much easier to manage/scale and Jenkins kubernetes plugin can even create ephemeral agents just to build and then destroy if needed.
+
+#### LinuxONE Community Cloud
+
+TODO : More on L1CC
 
 <div style="page-break-after: always;"></div>
 
@@ -271,9 +278,13 @@ As this job uses Github hooks, it'll automatically build after step 7.
 
 > Note, how our [Jenkinsfile](./code/Jenkinsfile) has a mix of `node ('s390x')` and `node ('amd64')`.
 
+Thats it ! You now now build your multi-architecture deployment pipeline on OpenShift !
+
 <div style="page-break-after: always;"></div>
 
 ## IBM Multicloud Manager
+
+TODO : More on IBM MCM
 
 Using MCM you could add both OCP on Intel and Z clusters, setup a `podPlacementPolicy` and deploy your app to MCM and let MCM decide the best place to deploy it.
 
@@ -310,5 +321,3 @@ Clicking on the endpoint will take you to the OCP on Z Cluster:
 
 In this scenario, I deployed WebSphere Liberty on OpenShift though IBM Multicloud Manager:
 ![z](./images/ocp-z-liberty.png)
-
-Thats it ! You now now build your multi-architecture deployment pipeline on OpenShift !
