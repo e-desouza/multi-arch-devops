@@ -26,7 +26,7 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
 ## ID Prerequisites
 
 - [GitHub](https://github.com/join)
-- [Docker](https://hub.docker.com/signup)
+- [Docker](https://hub.docker.com/signup) and [Docker Access Token](https://hub.docker.com/settings/security)
 - [IBM Cloud](https://cloud.ibm.com/registration)
 - IBM Washington System Center (will be distributed as part of the lab)
 - [LinuxONE Community Cloud](https://linuxone.cloud.marist.edu/cloud/#/register?flag=vm) (optional, but useful for self paced lab)
@@ -104,16 +104,18 @@ The first step is to build the containers on each architecture and store then in
 We build these images with these specific tags as it'll make mapping architectures to containers easier.
 
 ```
-thinklab/go-hello-world:x64-latest
+thinklab/go-hello-world:amd64-latest
 thinklab/go-hello-world:arm32-latest
 thinklab/go-hello-world:s390x-latest
 ```
+
+> **Note, you must push the containers to your container registry _before_ creating a manifest. Having them in your local registry isn't enough**
 
 Next, we create a manifest which contains each of these images:
 
 ```bash
 docker manifest create thinklab/go-hello-world:latest \
-thinklab/go-hello-world:x64-latest \
+thinklab/go-hello-world:amd64-latest \
 thinklab/go-hello-world:arm32-latest \
 thinklab/go-hello-world:s390x-latest
 ```
@@ -160,7 +162,7 @@ docker manifest inspect thinklab/go-hello-world:latest
 }
 ```
 
-The manifest command automatically picked up and annotated the architecture and os for each image.
+The manifest command automatically picked up and annotated the architecture and operating system for each image.
 
 You could also manually annotate with:
 
@@ -173,21 +175,22 @@ If we want to update the images referenced in the manifest, we could rebuild and
 
 ```bash
 docker manifest create thinklab/go-hello-world:latest \
---amend thinklab/go-hello-world:x64-latest \
---amend thinklab/go-hello-world:s390x-latest
+--amend thinklab/go-hello-world:amd64-latest \
 ```
-
-Finally to push to your container registry:
 
 ```
 docker manifest push thinklab/go-hello-world:latest
 ```
 
-Now you can do a docker pull on either Intel, ARM or IBM Z (s390x) and it will automatically pull the right container. This also applies to Kubernetes.
+Now you can do a docker pull on either Intel, ARM or IBM Z (s390x) and it will automatically pull the right container. This also applies to Kubernetes since internally, a pod just pulls the container following OCI spec.
 
 ```bash
 docker pull thinklab/go-hello-world
 ```
+
+This is just a small sample of platform options. If you look at the `hello-world` container, you'll several 9 different combinations of architecture and platform.
+
+![](./images/hello-world.png)
 
 ## Container Registries
 
@@ -272,9 +275,66 @@ Here, the stages in the middle `node {}` can run on any node, the stages on the 
 
 ## Application
 
-We will be using a simple hello-world Go web-server, that provides some interactivity in terms of its output across code changes. We will be using a [Go app](https://github.com/e-desouza/go-hello-world) that prints `Hello, World!` on http://localhost:8080 . This will also be a good test for Routing in OpenShift.
+We will be using a simple hello-world Go web-server, that provides some interactivity in terms of its output across code changes. We will be using a [Go app](https://github.com/e-desouza/go-hello-world) that prints `Hello, World!` on http://localhost:8080 . This will also be a good test for Routing in OpenShift. The simplest way to deploy an app to OpenShift if you have a container in a cluster accessible repo, is to use `oc new-app [container name]`
+
+So in our lab, it will be:
+
+`oc new-app thinklab/go-hello-world`
+
+You should see an output similar to this:
+
+```bash
+--> Found container image 90bd6b5 (32 minutes old) from Docker Hub for "thinklab/go-hello-world"
+
+    * An image stream tag will be created as "go-hello-world:latest" that will track this image
+    * This image will be deployed in deployment config "go-hello-world"
+    * The image does not expose any ports - if you want to load balance or send traffic to this component
+      you will need to create a service with 'oc expose dc/go-hello-world --port=[port]' later
+
+--> Creating resources ...
+    imagestreamtag.image.openshift.io "go-hello-world:latest" created
+    deploymentconfig.apps.openshift.io "go-hello-world" created
+--> Success
+    Run 'oc status' to view your app.
+```
+
+`oc status` will show:
+
+```
+In project team00 on server https://api.atsocpd1.dmz:6443
+
+http://go-hello-world-team00.apps.atsocpd1.dmz to pod port 8080-tcp (svc/go-hello-world)
+...
+```
+
+Next, to map it to localhost, you could:
+`oc get pods`
+
+```
+NAME                              READY   STATUS      RESTARTS   AGE
+go-hello-world-84s76            1/1     Running     0          55s
+..
+```
+
+and then
+
+```
+kubectl port-forward go-hello-world-84s76 8090:8080
+```
+
+Then either moving this to the background or opening a new session,
+
+`curl localhost:8080`
+
+which will show:
+
+```bash
+Hello, World!
+```
 
 ## Putting it all together
+
+Putting the build and deploy steps together:
 
 1. Fork the code into your GitHub repo
 2. Modify the Jenkinsfile and replace _["GIT REPO HERE"]_ to use your repo
