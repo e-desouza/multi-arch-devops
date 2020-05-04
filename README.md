@@ -6,6 +6,7 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
   - [Environment](#environment)
   - [ID Prerequisites](#id-prerequisites)
   - [What is a multi-architecture deployment anyway?](#what-is-a-multi-architecture-deployment-anyway)
+    - [Dockerfile](#dockerfile)
     - [Multi-architecture Manifests](#multi-architecture-manifests)
     - [Building multi-arch images](#building-multi-arch-images)
     - [Combining multi-arch images and manifests](#combining-multi-arch-images-and-manifests)
@@ -17,6 +18,7 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
     - [LinuxONE Community Cloud](#linuxone-community-cloud)
   - [Application](#application)
   - [Putting it all together](#putting-it-all-together)
+  - [Tips for multi-architecture builds:](#tips-for-multi-architecture-builds)
   - [IBM Multicloud Manager](#ibm-multicloud-manager)
 
 ---
@@ -54,6 +56,10 @@ Platforms include:
 - Operating System (windows, linux etc)
 - Instruction Architecture (**amd64**, **s390x**, ppcle64, arm, arm64 etc)
 
+### Dockerfile
+
+Writing a simple Dockerfile is easy, but we thought including some best practices here will help, esp since it will help speed up the multi-arch build process.
+
 ### Multi-architecture Manifests
 
 ![multi-arch](./images/manifest.png)
@@ -78,24 +84,24 @@ The builx builder is the most convenient mechanism but can be slow for non-nativ
 The first step is to build the containers on each architecture and store then in a single location. You could push them separately once the manifest is pushed to the repo.
 
 ```
-thinklab/go-ascii-banner:x64-latest
-thinklab/go-ascii-banner:arm32-latest
-thinklab/go-ascii-banner:s390x-latest
+thinklab/go-hello-world:x64-latest
+thinklab/go-hello-world:arm32-latest
+thinklab/go-hello-world:s390x-latest
 ```
 
 Next, we create a manifest which contains each of these images:
 
 ```bash
-docker manifest create thinklab/go-ascii-banner:latest \
-thinklab/go-ascii-banner:x64-latest \
-thinklab/go-ascii-banner:arm32-latest \
-thinklab/go-ascii-banner:s390x-latest
+docker manifest create thinklab/go-hello-world:latest \
+thinklab/go-hello-world:x64-latest \
+thinklab/go-hello-world:arm32-latest \
+thinklab/go-hello-world:s390x-latest
 ```
 
 Now let's review the output of:
 
 ```bash
-docker manifest inspect thinklab/go-ascii-banner:latest
+docker manifest inspect thinklab/go-hello-world:latest
 ```
 
 ```json
@@ -139,28 +145,28 @@ The manifest command automatically picked up and annotated the architecture and 
 You could also manually annotate with:
 
 ```bash
-docker manifest annotate thinklab/go-ascii-banner:latest \
-thinklab/go-ascii-banner:s390x-latest --arch s390x --os linux
+docker manifest annotate thinklab/go-hello-world:latest \
+thinklab/go-hello-world:s390x-latest --arch s390x --os linux
 ```
 
 If we want to update the images referenced in the manifest, we could rebuild and tag appropriately, then run:
 
 ```bash
-docker manifest create thinklab/go-ascii-banner:latest \
---amend thinklab/go-ascii-banner:x64-latest \
---amend thinklab/go-ascii-banner:s390x-latest
+docker manifest create thinklab/go-hello-world:latest \
+--amend thinklab/go-hello-world:x64-latest \
+--amend thinklab/go-hello-world:s390x-latest
 ```
 
 Finally to push to your container registry:
 
 ```
-docker manifest push thinklab/go-ascii-banner:latest
+docker manifest push thinklab/go-hello-world:latest
 ```
 
 Now you can do a docker pull on either Intel, ARM or IBM Z (s390x) and it will automatically pull the right container. This also applies to Kubernetes.
 
 ```bash
-docker pull thinklab/go-ascii-banner
+docker pull thinklab/go-hello-world
 ```
 
 ## Container Registries
@@ -244,9 +250,11 @@ The lab follows this topology:
 
 ![topology](./images/topology-lab.png)
 
-> **Note:** Using the kubernetes Jenkins plugin or OCP native Jenkins or other cloud native devOps pipline tooling would enable even fewer moving parts
+> **Note:** Using the kubernetes Jenkins plugin or OCP native Jenkins or other cloud native devOps pipeline tooling would enable even fewer moving parts
 
 You can run the Jenkins master itself on one of the clusters and the agent in another OCP cluster, reducing the need for 2 separate VMs. It will be much easier to manage/scale and Jenkins kubernetes plugin can even create ephemeral agents just to build and then destroy if needed.
+
+<div style="page-break-after: always;"></div>
 
 #### LinuxONE Community Cloud
 
@@ -256,7 +264,7 @@ TODO : More on L1CC
 
 ## Application
 
-We picked a simple app, that provides some interactivity in terms of its output across code changes. We will be using a [Go app](https://github.com/common-nighthawk/go-figure) that prints ASCII art from text.
+We will be using a simple hello-world Go web-server, that provides some interactivity in terms of its output across code changes. We will be using a [Go app](https://github.com/e-desouza/go-hello-world) that prints `Hello, World!` on http://localhost:8080 . This will also be a good test for Routing in OpenShift.
 
 ## Putting it all together
 
@@ -264,12 +272,14 @@ We picked a simple app, that provides some interactivity in terms of its output 
 2. Modify the Jenkinsfile and replace _["GIT REPO HERE"]_ to use your repo
 3. Copy the contents of the Jenkinsfile to your Jenkins job
 4. Run the job
-5. See your output at https://ip:port for your ROCKS cluster and https://ip:port for your OCP on Z cluster (links to both will be shown as part of the job
+5. See your output at https://ip:port for your ROCKS cluster and https://ip:port for your OCP on Z cluster (links to both will be shown as part of the job)
 6. clone the repo you forked in step 1.
-7. Change the `Hello World` in the code to anything you prefer and commit and push your code to github
+7. Change the `Hello World` on Line 14 in the code to anything you prefer and commit and push your code to github
 
 ```go
-  myFigure := figure.NewFigure("Hello World", "", true)
+func HelloServer(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello, World!") ← Modify this
+}
 ```
 
 8. Watch the Jenkins dashboard for activity and follow the links at end to get connectivity information to your code
@@ -277,6 +287,13 @@ We picked a simple app, that provides some interactivity in terms of its output 
 As this job uses Github hooks, it'll automatically build after step 7.
 
 > Note, how our [Jenkinsfile](./code/Jenkinsfile) has a mix of `node ('s390x')` and `node ('amd64')`.
+
+## Tips for multi-architecture builds:
+
+- Use multi-architecture base images. The official images on RedHat Container Registry and dockerhub of popular run-times are multi-arch enabled.
+- Use multi-stage builds. You will as many copies of binaries as architectures, so image size can creep up quickly.
+- Optimize for prod by stripping debug symbols, using UPX etc
+- Use native architecture build environments instead of `buildx` for speed.
 
 Thats it ! You now now build your multi-architecture deployment pipeline on OpenShift !
 
