@@ -95,11 +95,13 @@ Images are just binaries and as such, require to be built on the appropriate pla
 - docker [buildx](https://mirailabs.io/blog/multiarch-docker-with-buildx/) builder
 - docker default builder
 
-The builx builder is the most convenient mechanism but can be slow for non-native architectures as it is emulating the target architectures ISA in qemu. Docker's default builder is the most popular and is used in production by almost every organization building multi-arch images.
+The buildx builder is the most convenient mechanism but can be very slow for non-native architectures as it is emulating the target architectures ISA in qemu. Docker's default builder is the most popular and is used in production by almost every organization building multi-arch images, but needs to run on the destination architecture while building.
 
 ### Combining multi-arch images and manifests
 
 The first step is to build the containers on each architecture and store then in a single location. You could push them separately once the manifest is pushed to the repo.
+
+We build these images with these specific tags as it'll make mapping architectures to containers easier.
 
 ```
 thinklab/go-hello-world:x64-latest
@@ -315,7 +317,7 @@ Using MCM you could add both OCP on Intel and Z clusters, setup a `podPlacementP
 apiVersion: mcm.ibm.com/v1alpha1
  kind: PlacementPolicy
  metadata:
-   name: placement1
+   name: prod-placement-policy
    namespace: mcm
  spec:
    clusterLabels:
