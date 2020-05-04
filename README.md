@@ -3,8 +3,10 @@
 In this lab you will learn how to deploy a Jenkins pipeline to build your source code from github and deploy it to both OpenShift on Intel and OpenShift on IBM Z/LinuxONE. While there are several other steps in a devOps process, we will only focus on the deployment aspect here.
 
 - [Multi-architecture devOps using OpenShift](#multi-architecture-devops-using-openshift)
-  - [Environment](#environment)
   - [ID Prerequisites](#id-prerequisites)
+  - [Environment](#environment)
+  - [Topology Diagram](#topology-diagram)
+    - [LinuxONE Community Cloud](#linuxone-community-cloud)
   - [What is a multi-architecture deployment anyway?](#what-is-a-multi-architecture-deployment-anyway)
     - [Dockerfile](#dockerfile)
     - [Multi-architecture Manifests](#multi-architecture-manifests)
@@ -14,14 +16,20 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
   - [DevOps ecosystem](#devops-ecosystem)
     - [Jenkins](#jenkins)
       - [Nodes](#nodes)
-  - [Topology Diagram](#topology-diagram)
-    - [LinuxONE Community Cloud](#linuxone-community-cloud)
   - [Application](#application)
   - [Putting it all together](#putting-it-all-together)
   - [Tips for multi-architecture builds:](#tips-for-multi-architecture-builds)
   - [IBM Multicloud Manager](#ibm-multicloud-manager)
 
 ---
+
+## ID Prerequisites
+
+- [GitHub](https://github.com/join)
+- [Docker](https://hub.docker.com/signup)
+- [IBM Cloud](https://cloud.ibm.com/registration)
+- IBM Washington System Center (will be distributed as part of the lab)
+- [LinuxONE Community Cloud](https://linuxone.cloud.marist.edu/cloud/#/register?flag=vm) (optional, but useful for self paced lab)
 
 ## Environment
 
@@ -31,13 +39,23 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
 - IBM Container Registry on IBM Cloud
 - Jenkins agent on [IBM LinuxONE Community Cloud](https://developer.ibm.com/linuxone/)
 
-## ID Prerequisites
+<div style="page-break-after: always;"></div>
 
-- [GitHub](https://github.com/join)
-- [Docker](https://hub.docker.com/signup)
-- [IBM Cloud](https://cloud.ibm.com/registration)
-- IBM Washington System Center (will be distributed as part of the lab)
-- [LinuxONE Community Cloud](https://linuxone.cloud.marist.edu/cloud/#/register?flag=vm) (optional, but useful for self paced lab)
+## Topology Diagram
+
+![topology](./images/topology-lab.png)
+
+> **Note:** Using the Kubernetes Jenkins plugin or OCP native Jenkins or other cloud native devOps pipeline tooling would enable even fewer moving parts.
+
+You can run the Jenkins master itself on one of the clusters and the agent in another OCP cluster, reducing the need for 2 separate VMs. It will be much easier to manage/scale and Jenkins kubernetes plugin can even create ephemeral agents just to build and then destroy if needed. As you will note in the [Jenkins](#jenkins) section below, the goal of this lab is to go through each step as a learning exercise and to stay away from opinionated CI/CD tooling.
+
+<div style="page-break-after: always;"></div>
+
+#### LinuxONE Community Cloud
+
+TODO : More on L1CC
+
+<!--div style="page-break-after: always;"></div-->
 
 ## What is a multi-architecture deployment anyway?
 
@@ -68,7 +86,7 @@ To enable multi-architecture, docker added support for manifests which let you l
 
 By default the Docker daemon will look at its current operating system and architecture but it is possible to force download of a specific platform/architecture using the `--platform` command which is available in docker API [1.32+](https://docs.docker.com/engine/api/v1.32/) and need `experimental features` turned on in Docker daemon. The full specification of multi-architecture manifests can be found [here](https://docs.docker.com/registry/spec/manifest-v2-2/). More information on `docker pull` be found in the official docs [here](https://docs.docker.com/engine/reference/commandline/pull/).
 
-<div style="page-break-after: always;"></div>
+<!--div style="page-break-after: always;"></div-->
 
 ### Building multi-arch images
 
@@ -173,13 +191,19 @@ docker pull thinklab/go-hello-world
 
 When doing multi-arch, not all container registries are created equal. There are a few factors that might be important to help make a selection.
 
-| Name                         | Supports multi-architecture manifests | Certified for LinuxONE | Independant Product |
+| Name                         | Supports multi-architecture manifests | Certified for LinuxONE | Independent Product |
 | ---------------------------- | :-----------------------------------: | :--------------------: | :-----------------: |
 | OpenShift Container Registry |                  ✅                   |           ✅           |                     |
 | Quay                         |                  ✅                   |                        |         ✅          |
 | Docker Trusted Registry      |                  ✅                   |           ✅           |                     |
 | jFrog Artifactory            |                  ✅                   |                        |         ✅          |
 | Gitlab                       |                  ✅                   |                        |         ✅          |
+
+_Supports multi-architecture manifests:_ Not all registries support multi-arch manifests, the ones in the list do as they are relatively mature projects, but there are several in the wild that do not.
+
+_Certified for LinuxONE:_ A registry might be able to store images tagged for the `s390x` architecture but the registry itself might not run on a LinuxONE server. This is important as several organizations prefer to run their mission critical workloads and databases on LinuxONE and since a container registry stores images used in production, LinuxONE support is favorable.
+
+_Independent Product:_ A registry might come bundled with a larger set of products. Independent Product implies it can run on its own, without an overarching product.
 
 ## DevOps ecosystem
 
@@ -244,24 +268,6 @@ node ('prod') {
 
 Here, the stages in the middle `node {}` can run on any node, the stages on the `node ('prod')` will run on any nodes with prod label and of course, `node ('s390x')` will run on our node labeled s390x for this lab.
 
-## Topology Diagram
-
-The lab follows this topology:
-
-![topology](./images/topology-lab.png)
-
-> **Note:** Using the kubernetes Jenkins plugin or OCP native Jenkins or other cloud native devOps pipeline tooling would enable even fewer moving parts
-
-You can run the Jenkins master itself on one of the clusters and the agent in another OCP cluster, reducing the need for 2 separate VMs. It will be much easier to manage/scale and Jenkins kubernetes plugin can even create ephemeral agents just to build and then destroy if needed.
-
-<div style="page-break-after: always;"></div>
-
-#### LinuxONE Community Cloud
-
-TODO : More on L1CC
-
-<div style="page-break-after: always;"></div>
-
 ## Application
 
 We will be using a simple hello-world Go web-server, that provides some interactivity in terms of its output across code changes. We will be using a [Go app](https://github.com/e-desouza/go-hello-world) that prints `Hello, World!` on http://localhost:8080 . This will also be a good test for Routing in OpenShift.
@@ -290,12 +296,12 @@ As this job uses Github hooks, it'll automatically build after step 7.
 
 ## Tips for multi-architecture builds:
 
-- Use multi-architecture base images. The official images on RedHat Container Registry and dockerhub of popular run-times are multi-arch enabled.
-- Use multi-stage builds. You will as many copies of binaries as architectures, so image size can creep up quickly.
+- Use multi-architecture base images. The official images on RedHat Container Registry and dockerhub of popular run-times are multi-arch enabled, signed and supported by their vendors (e.g IBM for the popular WebSphere Liberty runtime)
+- Use multi-stage builds. You will store as many copies of binaries as architectures, so image size can creep up quickly
 - Optimize for prod by stripping debug symbols, using UPX etc
-- Use native architecture build environments instead of `buildx` for speed.
+- Use native architecture build environments instead of `buildx` for speed
 
-Thats it ! You now now build your multi-architecture deployment pipeline on OpenShift !
+> **Thats it ! You can now build your multi-architecture deployment pipeline on OpenShift across any public and private cloud environment ! 🎉**
 
 <div style="page-break-after: always;"></div>
 
