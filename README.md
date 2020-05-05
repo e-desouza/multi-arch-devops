@@ -6,7 +6,7 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
   - [ID Prerequisites](#id-prerequisites)
   - [Environment](#environment)
   - [Topology Diagram](#topology-diagram)
-    - [LinuxONE Community Cloud](#linuxone-community-cloud)
+      - [LinuxONE Community Cloud](#linuxone-community-cloud)
   - [What is a multi-architecture deployment anyway?](#what-is-a-multi-architecture-deployment-anyway)
     - [Dockerfile](#dockerfile)
     - [Multi-architecture Manifests](#multi-architecture-manifests)
@@ -22,6 +22,8 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
   - [IBM Multicloud Manager](#ibm-multicloud-manager)
 
 ---
+
+> Note, this is a generated PDF document, the latest version of this lab is on [github](https://github.com/THINKLab2020/multi-arch-devops)
 
 ## ID Prerequisites
 
@@ -101,7 +103,7 @@ The buildx builder is the most convenient mechanism but can be very slow for non
 
 The first step is to build the containers on each architecture and store then in a single location. You could push them separately once the manifest is pushed to the repo.
 
-We build these images with these specific tags as it'll make mapping architectures to containers easier.
+We build these images each on Docker running on the appropriate architecture. Then these specific tags as it'll make mapping architectures to containers easier. The `docker save` and `docker load` command can be used to push these to a single location. They can also be pushed separately, but they
 
 ```
 thinklab/go-hello-world:amd64-latest
