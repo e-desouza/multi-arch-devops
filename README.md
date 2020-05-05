@@ -51,11 +51,11 @@ In this lab you will learn how to deploy a Jenkins pipeline to build your source
 
 You can run the Jenkins master itself on one of the clusters and the agent in another OCP cluster, reducing the need for 2 separate VMs. It will be much easier to manage/scale and Jenkins kubernetes plugin can even create ephemeral agents just to build and then destroy if needed. As you will note in the [Jenkins](#jenkins) section below, the goal of this lab is to go through each step as a learning exercise and to stay away from opinionated CI/CD tooling.
 
-<div style="page-break-after: always;"></div>
+<!--div style="page-break-after: always;"></div-->
 
 #### LinuxONE Community Cloud
 
-TODO : More on L1CC
+The LinuxONE Community Cloud is a no-charge environment for experiencing Linux on the IBM LinuxONE platform. Linux could be any of your favorite disto's like RedHat Enterprise Linux, SUSE or Ubuntu. It can be used to test drive your Open Source project on the s390x architecture and optimize for over 200+ hardware instructions specifically added to speed up modern languages like Java, Go etc.
 
 <!--div style="page-break-after: always;"></div-->
 
@@ -88,7 +88,7 @@ To enable multi-architecture, docker added support for manifests which let you l
 
 By default the Docker daemon will look at its current operating system and architecture but it is possible to force download of a specific platform/architecture using the `--platform` command which is available in docker API [1.32+](https://docs.docker.com/engine/api/v1.32/) and need `experimental features` turned on in Docker daemon. The full specification of multi-architecture manifests can be found [here](https://docs.docker.com/registry/spec/manifest-v2-2/). More information on `docker pull` be found in the official docs [here](https://docs.docker.com/engine/reference/commandline/pull/).
 
-<!--div style="page-break-after: always;"></div-->
+<div style="page-break-after: always;"></div>
 
 ### Building multi-arch images
 
@@ -222,7 +222,7 @@ Drill down to the build and delivery section:
 
 As there are many options, each doing things in its own opinionated way, we will use Jenkins for this lab which will give you a foundation to build upon and consume the other tools.
 
-<div style="page-break-after: always;"></div>
+<!--div style="page-break-after: always;"></div-->
 
 ### Jenkins
 
@@ -274,6 +274,65 @@ node ('prod') {
 ```
 
 Here, the stages in the middle `node {}` can run on any node, the stages on the `node ('prod')` will run on any nodes with prod label and of course, `node ('s390x')` will run on our node labeled s390x for this lab.
+
+This is a sample of the Jenksfile we will use in this lab to build images that can run on IBM LinuxONE:
+
+```groovy
+pipeline {
+    agent {
+        label 's390x'
+    }
+    environment {
+        user_creds = credentials('dockerhub') // dockerhub is user/pass credential stored as Jenkins cred. Token can be used too
+        image = 'thinklab/go-hello-world:s390x-latest' // Replace with your [dockerid]/go-hello-world:s390x-latest
+        registry = 'https://github.com/THINKLab2020/go-hello-world.git' // Replace with your fork of the hello-world code
+    }
+    stages {
+        stage('Pull Source') {
+            steps {
+                sh 'rm -rf go-hello-world'
+                sh 'git clone $registry'
+            }
+        }
+        stage('Build image') {
+            steps {
+                dir('go-hello-world') {
+                    sh 'sudo -n docker build . -t go-hello-world'
+                }
+            }
+        }
+        stage('Tagging image') {
+            steps {
+                sh 'sudo -n docker tag go-hello-world $image'
+            }
+        }
+        stage('Pushing image') {
+            steps {
+                sh 'sudo -n docker login -u $user_creds_USR -p $user_creds_PSW'
+                sh 'sudo -n docker push $image'
+            }
+        }
+        stage('Amending manifest') {
+            steps {
+                sh 'sudo -n docker login -u $user_creds_USR -p $user_creds_PSW'
+                sh 'export DOCKER_CLI_EXPERIMENTAL=enabled ; sudo -E -n docker manifest create thinklab/go-hello-world:latest --amend thinklab/go-hello-world:amd64-latest --amend thinklab/go-hello-world:s390x-latest'
+            }
+        }
+        stage('Deploy Image to OpenShift') {
+            agent { label 'master' }
+            steps {
+                sh 'oc login --token=[replace] --server=[replace]'
+                sh 'oc delete is/go-hello-world || true' // Delete existing stream
+                sh 'oc delete thinklab go-hello-world || true' // & deployment config
+                sh 'oc new-app thinklab/go-hello-world' // Push new stream
+            }
+        }
+    }
+}
+
+```
+
+> Note, there are much more elegant ways of updating images in OpenShift once built. Here, we're using a very simplistic approach. Also, needing `root` to deploy or list containers doesn't makes sense - that's why we use `podman` over docker in our day to day projects.
 
 ## Application
 
@@ -361,19 +420,43 @@ As this job uses Github hooks, it'll automatically build after step 7.
 ## Tips for multi-architecture builds:
 
 - Use multi-architecture base images. The official images on RedHat Container Registry and dockerhub of popular run-times are multi-arch enabled, signed and supported by their vendors (e.g IBM for the popular WebSphere Liberty runtime)
+- Ensure registry lives outside your OpenShift Cluster. This will enable you to deal with cluster operations (scaling/spin-up/spin-down) independent of the registry
 - Use multi-stage builds. You will store as many copies of binaries as architectures, so image size can creep up quickly
 - Optimize for prod by stripping debug symbols, using UPX etc
 - Use native architecture build environments instead of `buildx` for speed
+- As a Jenkinsfile is valid Groovy, you can use the same exact Jenkinsfile with a `for loop` to generate build steps for each architecture. This will better align with the DRY (**D**on't **R**epeat **Y**ourself) principle.
 
-> **Thats it ! You can now build your multi-architecture deployment pipeline on OpenShift across any public and private cloud environment ! 🎉**
+```
+stage('multi-arch-build') {
+    def arch = ["amd64", "s390x", "arm64"]
 
-<div style="page-break-after: always;"></div>
+    for(..) {
+      node(arch[i]) {
+        ...
+      }
+    }
+    parallel arch
+}
+```
+
+- You could use Jenkinsfile as YAML and then a YAML templating engine like [ytt](https://get-ytt.io/)(whose output can also be passed into `helm` etc).
+- If sticking with Jenkins, use the plugins ecosystem (Kubernetes, OpenShift, Docker)
+- If moving to cloud-native CI/CD, use Tekton/JenkinsX/Razee etc
+- When doing builds across clusters and especially across firewall and security/compliance operational boundaries (e.g in a hybrid environment), pay special attention to security by using key based auth where possible, rolling certs, checksum validation, running your build system in zero-trust environments like [Hyper Protect Virtual Servers](https://www.ibm.com/cloud/hyper-protect-virtual-servers) etc. The examples we followed today were only for illustration.
+
+> ## **Thats it ! You can now build your multi-architecture deployment pipeline on OpenShift across any public and private cloud environment ! 🎉**
+
+<!--div style="page-break-after: always;"></div-->
+
+---
+
+> Now that you've completed the basic lab, you can learn about tools to do this in production. IBM Multicloud Manager is one such tool that is beyond the scope of the current THINK lab but will included in future self-paced labs.
 
 ## IBM Multicloud Manager
 
-TODO : More on IBM MCM
+The IBM Cloud Pak® for Multicloud Management, running on Red Hat OpenShift Container Platform, provides consistent visibility, governance and automation from on premises to the edge. Enterprises gain capabilities such as multicluster management, event management, application management and infrastructure management. Enterprises can leverage IBM Cloud Pak to help increase operational efficiency that's driven by intelligent data analysis and predictive golden signals, and gain built-in support for their compliance management.
 
-Using MCM you could add both OCP on Intel and Z clusters, setup a `podPlacementPolicy` and deploy your app to MCM and let MCM decide the best place to deploy it.
+For this lab, using MCM you could add both OCP on Intel and Z clusters, setup a `podPlacementPolicy` and deploy your app to MCM and let MCM decide the best place to deploy it.
 
 ```yaml
 apiVersion: mcm.ibm.com/v1alpha1
@@ -392,19 +475,27 @@ More details on placement policies can be found in the official IBM Multicloud M
 Our MCM cluster is setup with several kubernetes based PaaS clusters.
 
 This shows the summary in a GUI:
-![](./images/mcm-console-gui.png)
+![mcm](./images/mcm-console-gui.png)
 
 Cluster(s) health in a single view:
-![](./images/mcm-console-health.png)
+![mcm](./images/mcm-console-health.png)
 
 Cross-cluster catalog:
-![](./images/mcm-catalog.png)
+![mcm](./images/mcm-catalog.png)
 
 Details about our specific OCP on Z cluster
-![](./images/mcm-ocp-z-nodes.png)
+![mcm](./images/mcm-ocp-z-nodes.png)
 
 Clicking on the endpoint will take you to the OCP on Z Cluster:
-![z](./images/ocp-z-dashboard.png)
+![dashboard](./images/ocp-z-dashboard.png)
 
 In this scenario, I deployed WebSphere Liberty on OpenShift though IBM Multicloud Manager:
-![z](./images/ocp-z-liberty.png)
+![liberty](./images/ocp-z-liberty.png)
+
+<!--div style="page-break-after: always;"></div-->
+
+Similarly, you could go to your ROKS cluster using the IBM Cloud console or through MCM GUI:
+
+![roks](./images/roks.png)
+
+Detailed instructions on MCM deployment and management across multiple architectures will be part of our self-paced lab.
