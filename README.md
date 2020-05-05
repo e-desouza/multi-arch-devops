@@ -316,6 +316,8 @@ pipeline {
             steps {
                 sh 'sudo -n docker login -u $user_creds_USR -p $user_creds_PSW'
                 sh 'export DOCKER_CLI_EXPERIMENTAL=enabled ; sudo -E -n docker manifest create thinklab/go-hello-world:latest --amend thinklab/go-hello-world:amd64-latest --amend thinklab/go-hello-world:s390x-latest'
+                sh 'export DOCKER_CLI_EXPERIMENTAL=enabled ; sudo -E -n docker manifest push thinklab/go-hello-world:latest'
+
             }
         }
         stage('Deploy Image to OpenShift') {
